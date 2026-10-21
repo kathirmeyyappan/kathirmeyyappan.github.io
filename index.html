@@ -131,7 +131,7 @@
        rotated and a touch slower) and different speed profiles, though they set off together
        and arrive at the front within a few hundred ms of each other. */
     .walker {
-      width: calc(var(--stage-w) * 0.74); aspect-ratio: 36 / 40;
+      width: calc(var(--stage-w) * 0.59); aspect-ratio: 36 / 40;
       transform: translateY(-50%);
       transition: opacity 0.35s ease; /* the fade-out; the entrance is the scale-up from 0 */
     }
@@ -145,19 +145,21 @@
     }
     .walker.left.go img  { animation: approach-a 5.1s linear both; }
     .walker.right.go img { animation: approach-b 5.3s linear both; }
-    /* piecewise curves: each segment eases a little, so the pace swells and settles */
+    /* piecewise curves: a quick burst to a size you can't miss, then a steady walk-up */
     @keyframes approach-a {
-      0%   { transform: translateY(-40%) scale(0);    filter: blur(1.5px) drop-shadow(0 4px 0 rgba(0, 0, 0, 0.55)); animation-timing-function: cubic-bezier(0.4, 0, 0.75, 0.8); }
-      26%  { transform: translateY(-34%) scale(0.17); filter: blur(1.2px) drop-shadow(0 4px 0 rgba(0, 0, 0, 0.55)); animation-timing-function: cubic-bezier(0.25, 0.2, 0.75, 0.8); }
-      54%  { transform: translateY(-23%) scale(0.34); filter: blur(0.6px) drop-shadow(0 4px 0 rgba(0, 0, 0, 0.55)); animation-timing-function: cubic-bezier(0.25, 0.2, 0.75, 0.8); }
-      80%  { transform: translateY(-9%)  scale(0.66); filter: blur(0)     drop-shadow(0 4px 0 rgba(0, 0, 0, 0.55)); animation-timing-function: cubic-bezier(0.25, 0.2, 0.6, 1); }
+      0%   { transform: translateY(-40%) scale(0);    filter: blur(1.5px) drop-shadow(0 4px 0 rgba(0, 0, 0, 0.55)); animation-timing-function: cubic-bezier(0.2, 0.6, 0.4, 1); }
+      8%   { transform: translateY(-29%) scale(0.28); filter: blur(0.9px) drop-shadow(0 4px 0 rgba(0, 0, 0, 0.55)); animation-timing-function: cubic-bezier(0.25, 0.2, 0.75, 0.8); }
+      30%  { transform: translateY(-24%) scale(0.40); filter: blur(0.5px) drop-shadow(0 4px 0 rgba(0, 0, 0, 0.55)); animation-timing-function: cubic-bezier(0.25, 0.2, 0.75, 0.8); }
+      60%  { transform: translateY(-17%) scale(0.58); filter: blur(0)     drop-shadow(0 4px 0 rgba(0, 0, 0, 0.55)); animation-timing-function: cubic-bezier(0.25, 0.2, 0.75, 0.8); }
+      85%  { transform: translateY(-7%)  scale(0.82); filter: blur(0)     drop-shadow(0 4px 0 rgba(0, 0, 0, 0.55)); animation-timing-function: cubic-bezier(0.25, 0.2, 0.6, 1); }
       100% { transform: translateY(0)    scale(1);    filter: blur(0)     drop-shadow(0 4px 0 rgba(0, 0, 0, 0.55)); }
     }
     @keyframes approach-b {
-      0%   { transform: translateY(-40%) scale(0);    filter: blur(1.5px) drop-shadow(0 4px 0 rgba(0, 0, 0, 0.55)); animation-timing-function: cubic-bezier(0.5, 0, 0.8, 0.6); }
-      34%  { transform: translateY(-31%) scale(0.21); filter: blur(1.1px) drop-shadow(0 4px 0 rgba(0, 0, 0, 0.55)); animation-timing-function: cubic-bezier(0.25, 0.2, 0.75, 0.8); }
-      60%  { transform: translateY(-19%) scale(0.41); filter: blur(0.4px) drop-shadow(0 4px 0 rgba(0, 0, 0, 0.55)); animation-timing-function: cubic-bezier(0.3, 0.1, 0.75, 0.8); }
-      85%  { transform: translateY(-6%)  scale(0.75); filter: blur(0)     drop-shadow(0 4px 0 rgba(0, 0, 0, 0.55)); animation-timing-function: cubic-bezier(0.25, 0.2, 0.55, 1); }
+      0%   { transform: translateY(-40%) scale(0);    filter: blur(1.5px) drop-shadow(0 4px 0 rgba(0, 0, 0, 0.55)); animation-timing-function: cubic-bezier(0.2, 0.5, 0.45, 1); }
+      10%  { transform: translateY(-30%) scale(0.24); filter: blur(1px)   drop-shadow(0 4px 0 rgba(0, 0, 0, 0.55)); animation-timing-function: cubic-bezier(0.25, 0.2, 0.75, 0.8); }
+      34%  { transform: translateY(-25%) scale(0.38); filter: blur(0.5px) drop-shadow(0 4px 0 rgba(0, 0, 0, 0.55)); animation-timing-function: cubic-bezier(0.3, 0.1, 0.75, 0.8); }
+      62%  { transform: translateY(-18%) scale(0.55); filter: blur(0)     drop-shadow(0 4px 0 rgba(0, 0, 0, 0.55)); animation-timing-function: cubic-bezier(0.25, 0.2, 0.75, 0.8); }
+      86%  { transform: translateY(-8%)  scale(0.80); filter: blur(0)     drop-shadow(0 4px 0 rgba(0, 0, 0, 0.55)); animation-timing-function: cubic-bezier(0.25, 0.2, 0.55, 1); }
       100% { transform: translateY(0)    scale(1);    filter: blur(0)     drop-shadow(0 4px 0 rgba(0, 0, 0, 0.55)); }
     }
 
