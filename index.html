@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
   <link rel="preload" as="image" href="assets/elizabeth-walk.gif">
-  <link rel="preload" as="image" href="assets/anime.gif">
+  <link rel="preload" as="image" href="assets/elizabeth-stand.png">
   <style>
     :root {
       --bg: #07080c;
@@ -18,6 +18,10 @@
       --dim: rgba(236, 233, 220, 0.5);
       --pixel: 'Press Start 2P', 'VT323', monospace;
       --mono: 'VT323', 'Courier New', monospace;
+      /* the menu sits in the middle; a "stage" flanks it on each side */
+      --menu-w: 360px;
+      --gap: clamp(24px, 3vw, 40px);
+      --stage-w: clamp(120px, calc((100vw - var(--menu-w)) / 2 - var(--gap) * 2), 340px);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; }
@@ -57,7 +61,7 @@
       gap: 22px; padding: 0 16px;
     }
     .item {
-      position: relative; display: block; width: min(360px, 100%);
+      position: relative; display: block; width: min(var(--menu-w), 100%);
       padding: 18px 22px 16px;
       color: var(--fg); text-decoration: none; text-align: center;
       border: 3px solid rgba(255, 255, 255, 0.16);
@@ -111,36 +115,43 @@
       100% { top: 100%; opacity: 0; }
     }
 
-    /* ---- WORLD: Elizabeth walks across the bottom of the page ---- */
+    /* ---- stages: one on each side of the menu, vertically centred on it ---- */
+    .stage {
+      position: fixed; z-index: 6; top: 50%; pointer-events: none;
+      opacity: 0; transition: opacity 0.25s ease;
+    }
+    .stage.left  { right: calc(50% + var(--menu-w) / 2 + var(--gap)); }
+    .stage.right { left:  calc(50% + var(--menu-w) / 2 + var(--gap)); }
+    .stage.show { opacity: 1; }
+    @media (max-width: 640px) { .stage { display: none; } }
+
+    /* ---- WORLD: Elizabeth walks up from the distance and stops ---- */
     .walker {
-      position: fixed; left: 0; bottom: 96px; z-index: 6;
-      width: 108px; height: 120px;
-      image-rendering: pixelated;
-      filter: drop-shadow(0 4px 0 rgba(0, 0, 0, 0.55));
-      opacity: 0; pointer-events: none; will-change: transform;
-      transform: translateX(-130px);
+      width: calc(var(--stage-w) * 0.74); aspect-ratio: 36 / 40;
+      transform: translateY(-50%);
       transition: opacity 0.35s ease;
     }
-    .walker.visible { opacity: 1; }
-    .walker.walking { animation: walk var(--walk, 12s) linear infinite; }
-    @keyframes walk {
-      from { transform: translateX(-130px); }
-      to   { transform: translateX(100vw); }
+    .walker img {
+      display: block; width: 100%; height: 100%;
+      image-rendering: pixelated;
+      transform-origin: 50% 100%;
+      transform: translateY(-40%) scale(0.1);
+      filter: blur(1.5px) drop-shadow(0 4px 0 rgba(0, 0, 0, 0.55));
+    }
+    .walker.go img { animation: approach 5s cubic-bezier(0.55, 0.05, 0.7, 0.8) both; }
+    .walker.right.go img { animation-delay: 0.25s; }
+    @keyframes approach {
+      from { transform: translateY(-40%) scale(0.1); filter: blur(1.5px) drop-shadow(0 4px 0 rgba(0, 0, 0, 0.55)); }
+      to   { transform: translateY(0) scale(1);      filter: blur(0)     drop-shadow(0 4px 0 rgba(0, 0, 0, 0.55)); }
     }
 
-    /* ---- ANIME: a CRT television switches on ---- */
+    /* ---- ANIME: two CRT televisions switch on ---- */
     .tv {
-      position: fixed; z-index: 6; pointer-events: none; opacity: 0;
-      left: calc(50% + 215px); top: 50%; width: 340px; transform: translateY(-50%);
+      width: var(--stage-w);
+      transform: translateY(-50%);
       transition: opacity 0.25s ease 0.4s;
     }
-    .tv.show { opacity: 1; transition-delay: 0s; }
-    @media (max-width: 1099px) { /* no room beside the menu: sit above it, sized to fit */
-      .tv {
-        left: 50%; top: 16px; transform: translateX(-50%);
-        width: clamp(180px, calc((50vh - 215px) / 0.75), 300px);
-      }
-    }
+    .tv.show { transition-delay: 0s; }
     .tv .set {
       background: #1a1922; border-radius: 18px; padding: 14px 14px 26px;
       box-shadow: 7px 7px 0 #000, inset 0 0 0 2px #2b2a36;
@@ -211,11 +222,10 @@
       .boot { top: 16px; left: 16px; font-size: 18px; }
       .item .label { font-size: 13px; }
       .item::before { display: none; }
-      .walker { bottom: 84px; }
       .socials { bottom: 24px; gap: 26px; }
     }
     @media (prefers-reduced-motion: reduce) {
-      .walker.walking { animation: none; transform: translateX(24px); }
+      .walker img, .walker.go img { animation: none; transform: none; filter: none; }
       .tv .screen.on { animation: none; transform: none; opacity: 1; }
       .tv .screen.off { animation: none; opacity: 0; }
       .item::before, .cursor { animation: none; }
@@ -243,17 +253,21 @@
     </a>
   </nav>
 
-  <div class="tv" aria-hidden="true">
+  <div class="stage tv left" aria-hidden="true">
     <div class="set">
-      <div class="screen">
-        <span class="osd">AV-1</span>
-        <img src="assets/anime.gif" alt="">
-      </div>
+      <div class="screen"><span class="osd">AV-1</span><img alt=""></div>
+      <span class="led"></span>
+    </div>
+  </div>
+  <div class="stage tv right" aria-hidden="true">
+    <div class="set">
+      <div class="screen"><span class="osd">AV-2</span><img alt=""></div>
       <span class="led"></span>
     </div>
   </div>
 
-  <img class="walker" src="assets/elizabeth-walk.gif" alt="" aria-hidden="true">
+  <div class="stage walker left" aria-hidden="true"><img src="assets/elizabeth-walk.gif" alt=""></div>
+  <div class="stage walker right" aria-hidden="true"><img src="assets/elizabeth-walk.gif" alt=""></div>
 
   <footer class="socials">
     <a href="https://github.com/kathirmeyyappan" target="_blank" rel="noopener" title="github" aria-label="github">
@@ -273,8 +287,9 @@
   <script>
     (() => {
       const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const canHover = matchMedia('(hover: hover)').matches;
 
-      // Hover/focus → "hot". Pointer events cover mouse; focus covers keyboard.
+      // Hover/focus → on; leave/blur → off. Pointer events cover mouse; focus covers keyboard.
       const bind = (el, on, off) => {
         el.addEventListener('pointerenter', on);
         el.addEventListener('pointerleave', off);
@@ -313,28 +328,58 @@
         () => scramble(sub.dataset.hot),
         () => scramble(sub.dataset.rest));
 
-      // ---- WORLD: Elizabeth walks across the bottom ----
-      const walker = document.querySelector('.walker');
-      const pace = () => walker.style.setProperty('--walk', ((innerWidth + 130) / 140) + 's');
-      pace(); addEventListener('resize', pace);
+      // ---- WORLD: an Elizabeth on each side walks up from the distance for 5s, then stands ----
+      const WALK = 'assets/elizabeth-walk.gif', STAND = 'assets/elizabeth-stand.png';
+      const walkers = [...document.querySelectorAll('.walker')];
       let hideTimer = 0;
+      for (const w of walkers) {
+        w.querySelector('img').addEventListener('animationend', (e) => { e.target.src = STAND; });
+      }
       bind(document.getElementById('world'), () => {
         clearTimeout(hideTimer);
-        walker.classList.add('walking', 'visible');
+        for (const w of walkers) {
+          w.querySelector('img').src = WALK;
+          w.classList.remove('go');
+          void w.offsetWidth; // restart the approach from the far end
+          w.classList.add('go', 'show');
+        }
       }, () => {
-        walker.classList.remove('visible');
-        hideTimer = setTimeout(() => walker.classList.remove('walking'), 400);
+        for (const w of walkers) w.classList.remove('show');
+        hideTimer = setTimeout(() => {
+          for (const w of walkers) { w.classList.remove('go'); w.querySelector('img').src = WALK; }
+        }, 400);
       });
 
-      // ---- ANIME: the TV switches on ----
-      const tv = document.querySelector('.tv');
-      const screen = tv.querySelector('.screen');
+      // ---- ANIME: two TVs switch on, each showing a gif drawn at random from the pool ----
+      const POOL = [
+        'assets/anime/bebop.gif',
+        'assets/anime/luffy.gif',
+      ];
+      const tvs = [...document.querySelectorAll('.tv')];
+      const loaded = new Set();
+      const preload = (src) => { const i = new Image(); i.onload = () => loaded.add(src); i.src = src; };
+      if (canHover) addEventListener('load', () => POOL.forEach(preload));
+      // n distinct picks, preferring gifs that are already in the cache; cycle if the pool is short
+      const pick = (n) => {
+        const a = [...(loaded.size >= n ? loaded : POOL)];
+        for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; }
+        return Array.from({ length: n }, (_, i) => a[i % a.length]);
+      };
       bind(document.getElementById('anime'), () => {
-        screen.classList.remove('off'); screen.classList.add('on');
-        tv.classList.add('show');
+        const srcs = pick(tvs.length);
+        tvs.forEach((tv, i) => {
+          const img = tv.querySelector('img');
+          if (!img.src.endsWith(srcs[i])) img.src = srcs[i];
+          const screen = tv.querySelector('.screen');
+          screen.classList.remove('off'); screen.classList.add('on');
+          tv.classList.add('show');
+        });
       }, () => {
-        screen.classList.remove('on'); screen.classList.add('off');
-        tv.classList.remove('show');
+        for (const tv of tvs) {
+          const screen = tv.querySelector('.screen');
+          screen.classList.remove('on'); screen.classList.add('off');
+          tv.classList.remove('show');
+        }
       });
     })();
   </script>
