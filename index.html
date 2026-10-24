@@ -188,6 +188,12 @@
     .tv .screen img {
       width: 100%; height: 100%; object-fit: cover; display: block;
       filter: saturate(1.2) contrast(1.08);
+      position: relative; opacity: 0; transition: opacity 0.7s ease;
+    }
+    .tv .screen img.ready { opacity: 1; }
+    .tv .screen .static { /* snow until the gif is in; drawn small, scaled up pixelated */
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      image-rendering: pixelated;
     }
     .tv .screen::before { /* scanlines + aperture */
       content: ''; position: absolute; inset: 0;
@@ -273,13 +279,13 @@
 
   <div class="stage tv left" aria-hidden="true">
     <div class="set">
-      <div class="screen"><span class="osd">AV-1</span><img alt=""></div>
+      <div class="screen"><canvas class="static" width="96" height="72"></canvas><span class="osd">AV-1</span><img alt=""></div>
       <span class="led"></span>
     </div>
   </div>
   <div class="stage tv right" aria-hidden="true">
     <div class="set">
-      <div class="screen"><span class="osd">AV-2</span><img alt=""></div>
+      <div class="screen"><canvas class="static" width="96" height="72"></canvas><span class="osd">AV-2</span><img alt=""></div>
       <span class="led"></span>
     </div>
   </div>
@@ -388,21 +394,54 @@
       let next = pick(tvs.length);
       const warm = () => next.forEach((src) => { const i = new Image(); i.src = src; });
       if (canHover) addEventListener('load', warm);
+      // Each screen shows CRT snow the instant it switches on; the gif fades in over it once
+      // decoded, so a slow download never shows a black screen or a pop-in.
+      const snow = (tv) => {
+        const canvas = tv.querySelector('.static'), ctx = canvas.getContext('2d');
+        const { width: w, height: h } = canvas;
+        const px = ctx.createImageData(w, h), d = px.data;
+        let raf = 0, last = 0, band = 0;
+        const frame = (now) => {
+          raf = requestAnimationFrame(frame);
+          if (now - last < 40) return; // ~25 fps is plenty for snow
+          last = now; band = (band + 1.5) % (h + 12);
+          for (let i = 0; i < d.length; i += 4) {
+            const y = (i >> 2) / w | 0;
+            const dark = Math.abs(y - band) < 6 ? 0.55 : 1; // a dim bar rolling down the screen
+            const v = (Math.random() * 190 + 30) * dark;
+            d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255;
+          }
+          ctx.putImageData(px, 0, 0);
+        };
+        return {
+          start() { if (!raf) raf = requestAnimationFrame(frame); },
+          stop() { cancelAnimationFrame(raf); raf = 0; },
+        };
+      };
+      const sets = tvs.map((tv) => ({ tv, img: tv.querySelector('img'), screen: tv.querySelector('.screen'), snow: snow(tv), stopTimer: 0 }));
       bind(document.getElementById('anime'), () => {
         const srcs = next;
         next = pick(tvs.length); warm();
-        tvs.forEach((tv, i) => {
-          const img = tv.querySelector('img');
-          if (!img.src.endsWith(srcs[i])) img.src = srcs[i];
-          const screen = tv.querySelector('.screen');
-          screen.classList.remove('off'); screen.classList.add('on');
-          tv.classList.add('show');
+        sets.forEach((s, i) => {
+          clearTimeout(s.stopTimer);
+          s.img.classList.remove('ready');
+          if (!s.img.src.endsWith(srcs[i])) s.img.src = srcs[i];
+          s.screen.classList.remove('off'); s.screen.classList.add('on');
+          s.tv.classList.add('show');
+          s.snow.start();
+          const src = s.img.src;
+          s.img.decode().then(() => {
+            if (s.img.src !== src || !s.tv.classList.contains('show')) return;
+            s.img.classList.add('ready');
+            s.stopTimer = setTimeout(() => s.snow.stop(), 800); // after the fade
+          }).catch(() => {});
         });
       }, () => {
-        for (const tv of tvs) {
-          const screen = tv.querySelector('.screen');
-          screen.classList.remove('on'); screen.classList.add('off');
-          tv.classList.remove('show');
+        for (const s of sets) {
+          clearTimeout(s.stopTimer);
+          s.screen.classList.remove('on'); s.screen.classList.add('off');
+          s.tv.classList.remove('show');
+          s.stopTimer = setTimeout(() => s.snow.stop(), 500); // after the switch-off
         }
       });
     })();
