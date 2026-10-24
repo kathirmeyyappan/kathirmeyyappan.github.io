@@ -372,20 +372,25 @@
       // ---- ANIME: two TVs switch on, each showing a gif drawn at random from the pool ----
       const POOL = [
         'assets/anime/bebop.gif',
+        'assets/anime/gintama.gif',
+        'assets/anime/kizumonogatari.gif',
+        'assets/anime/nhk.gif',
+        'assets/anime/rakugo.gif',
         'assets/anime/luffy.gif',
+        'assets/anime/monster.gif',
+        'assets/anime/tatami-galaxy.gif',
       ];
       const tvs = [...document.querySelectorAll('.tv')];
-      const loaded = new Set();
-      const preload = (src) => { const i = new Image(); i.onload = () => loaded.add(src); i.src = src; };
-      if (canHover) addEventListener('load', () => POOL.forEach(preload));
-      // n distinct picks, preferring gifs that are already in the cache; cycle if the pool is short
-      const pick = (n) => {
-        const a = [...(loaded.size >= n ? loaded : POOL)];
-        for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; }
-        return Array.from({ length: n }, (_, i) => a[i % a.length]);
-      };
+      // Only the pair that will show next is ever fetched: pick it, warm the cache, and once it
+      // has been shown pick and warm the pair after it. A visit costs a few gifs, not the pool.
+      const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
+      const pick = (n) => { const a = shuffle([...POOL]); return Array.from({ length: n }, (_, i) => a[i % a.length]); };
+      let next = pick(tvs.length);
+      const warm = () => next.forEach((src) => { const i = new Image(); i.src = src; });
+      if (canHover) addEventListener('load', warm);
       bind(document.getElementById('anime'), () => {
-        const srcs = pick(tvs.length);
+        const srcs = next;
+        next = pick(tvs.length); warm();
         tvs.forEach((tv, i) => {
           const img = tv.querySelector('img');
           if (!img.src.endsWith(srcs[i])) img.src = srcs[i];
