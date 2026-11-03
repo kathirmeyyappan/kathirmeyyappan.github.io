@@ -387,20 +387,32 @@
         'assets/anime/zoro.gif',
       ];
       const tvs = [...document.querySelectorAll('.tv')];
-      // Only the pair that will show next is ever fetched: pick it, warm the cache, and once it
-      // has been shown pick and warm the pair after it. A visit costs a few gifs, not the pool.
-      // A pick never repeats the pair on screen, so two hovers in a row always differ.
+      // The pool is a queue, shuffled once. Each hover draws two gifs from it, weighted so the
+      // front is much likelier than the back (position n has weight DECAY^n: 0.6, 0.36, 0.22...),
+      // then sends both to the back. Recently shown gifs sink; long-unseen ones rise. Only the
+      // pair that will show next is ever fetched, so a visit costs a few gifs, not the pool.
+      const DECAY = 0.6;
       const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
-      const pick = (n, avoid = []) => {
-        const a = shuffle(POOL.filter((src) => !avoid.includes(src)));
-        return Array.from({ length: n }, (_, i) => a[i % a.length]);
+      const queue = shuffle([...POOL]);
+      const draw = (len) => { // index into the first `len` queue slots, weighted by position
+        let r = Math.random() * (1 - DECAY ** len) / (1 - DECAY);
+        for (let i = 0; i < len - 1; i++) { r -= DECAY ** i; if (r < 0) return i; }
+        return len - 1;
+      };
+      const pick = (n) => {
+        const out = [];
+        // the last n slots hold the pair on screen; leave them out so a gif never shows twice running
+        for (let k = 0; k < Math.min(n, queue.length); k++) out.push(...queue.splice(draw(Math.max(1, queue.length - n)), 1));
+        queue.push(...out);
+        while (out.length < n) out.push(out[out.length % Math.max(1, out.length)]);
+        return out;
       };
       let next = pick(tvs.length);
       const warm = () => next.forEach((src) => { const i = new Image(); i.src = src; });
       if (canHover) addEventListener('load', warm);
       bind(document.getElementById('anime'), () => {
         const srcs = next;
-        next = pick(tvs.length, srcs); warm();
+        next = pick(tvs.length); warm();
         tvs.forEach((tv, i) => {
           const img = tv.querySelector('img');
           if (!img.src.endsWith(srcs[i])) img.src = srcs[i];
