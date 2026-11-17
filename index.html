@@ -447,7 +447,13 @@
         next = pick(tvs.length); warm();
         sets.forEach((s, i) => {
           clearTimeout(s.stopTimer);
+          // Hide the last gif at once (no fade-out): the browser keeps painting it until the
+          // new one has decoded, which on a slow connection is long enough to look like the
+          // switch-on showed it. Only the way in fades.
+          s.img.style.transition = 'none';
           s.img.classList.remove('ready');
+          void s.img.offsetWidth;
+          s.img.style.transition = '';
           if (!s.img.src.endsWith(srcs[i])) s.img.src = srcs[i];
           s.screen.classList.remove('off'); s.screen.classList.add('on');
           s.tv.classList.add('show');
