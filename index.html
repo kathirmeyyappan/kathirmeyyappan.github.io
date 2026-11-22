@@ -126,6 +126,25 @@
     .stage.show { opacity: 1; }
     @media (max-width: 640px) { .stage { display: none; } }
 
+    /* ---- WORLD: a clip of the world plays behind the page, dark and muted, like an old set ---- */
+    .backdrop {
+      position: fixed; inset: 0; z-index: 1; pointer-events: none;
+      opacity: 0; transition: opacity 0.6s ease;
+      filter: brightness(0.6) saturate(0.6) contrast(1.08);
+    }
+    .backdrop.show { opacity: 1; }
+    .backdrop video {
+      position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+      transform-origin: 50% 50%; opacity: 0;
+    }
+    .backdrop::after { /* keeps the middle readable: dark toward the menu, darker at the edges */
+      content: ''; position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse at 50% 50%, rgba(7, 8, 12, 0.45) 0%, rgba(7, 8, 12, 0.08) 45%, rgba(7, 8, 12, 0.6) 100%);
+    }
+    .backdrop video.on  { animation: tv-on 0.6s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+    .backdrop video.off { animation: tv-off 0.45s ease-in both; }
+
     /* ---- WORLD: an Elizabeth on each side walks up from the distance and stops ----
        The two are deliberately out of step: different gifs (the right one's walk cycle is
        rotated and a touch slower) and different speed profiles, though they set off together
@@ -277,6 +296,11 @@
     </a>
   </nav>
 
+  <div class="backdrop" aria-hidden="true">
+    <video muted playsinline preload="none"></video>
+    <video muted playsinline preload="none"></video>
+  </div>
+
   <div class="stage tv left" aria-hidden="true">
     <div class="set">
       <div class="screen"><canvas class="static" width="96" height="72"></canvas><span class="osd">AV-1</span><img alt=""></div>
@@ -354,13 +378,15 @@
 
       // ---- WORLD: an Elizabeth on each side walks up from the distance for 5s, then stands ----
       const STAND = 'assets/elizabeth-stand.png'; // each walker's own gif is in data-walk
-      const walkers = [...document.querySelectorAll('.walker')];
+      const ELIZABETHS = false; // the pair that walks up on WORLD hover; false hides them
+      const walkers = ELIZABETHS ? [...document.querySelectorAll('.walker')] : [];
       let hideTimer = 0;
       for (const w of walkers) {
         w.querySelector('img').addEventListener('animationend', (e) => { e.target.src = STAND; });
       }
       bind(document.getElementById('world'), () => {
         clearTimeout(hideTimer);
+        showBackdrop(true);
         for (const w of walkers) {
           const img = w.querySelector('img');
           img.src = img.dataset.walk;
@@ -369,11 +395,78 @@
           w.classList.add('go', 'show');
         }
       }, () => {
+        showBackdrop(false);
         for (const w of walkers) w.classList.remove('show');
         hideTimer = setTimeout(() => {
           for (const w of walkers) { w.classList.remove('go'); const img = w.querySelector('img'); img.src = img.dataset.walk; }
         }, 400);
       });
+
+      // A pool as a queue, shuffled once. Each pick draws n entries weighted so the front is much
+      // likelier than the back (slot n has weight DECAY^n: 0.6, 0.36, 0.22...) and sends them to
+      // the back, so what was just shown sinks and what's long unseen rises. The last n slots hold
+      // what's on screen and are left out, so nothing shows twice running.
+      const DECAY = 0.6;
+      const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
+      const weightedQueue = (pool) => {
+        const queue = shuffle([...pool]);
+        const draw = (len) => {
+          let r = Math.random() * (1 - DECAY ** len) / (1 - DECAY);
+          for (let i = 0; i < len - 1; i++) { r -= DECAY ** i; if (r < 0) return i; }
+          return len - 1;
+        };
+        return (n) => {
+          const out = [];
+          for (let k = 0; k < Math.min(n, queue.length); k++) out.push(...queue.splice(draw(Math.max(1, queue.length - n)), 1));
+          queue.push(...out);
+          while (out.length < n) out.push(out[out.length % Math.max(1, out.length)]);
+          return out;
+        };
+      };
+
+      // ---- WORLD: a clip of the world behind the page; when one ends the next switches on ----
+      // Two players take turns: while one plays, the next clip loads into the other, so a switch
+      // never waits on the network. Nothing is fetched on a device that can't hover.
+      const CLIPS = [
+        'assets/world/waluigi-boost.mp4',
+      ];
+      const backdrop = document.querySelector('.backdrop');
+      const nextClip = weightedQueue(CLIPS);
+      let [playing, standby] = backdrop.querySelectorAll('video');
+      let backdropOn = false, lit = false;
+      const stage = (v) => { v.src = nextClip(1)[0]; v.preload = 'auto'; v.load(); };
+      const ready = (v) => v.readyState >= 3; // HAVE_FUTURE_DATA: it can start without stalling
+      const switchOn = () => {
+        lit = true;
+        standby.classList.remove('on', 'off'); standby.style.opacity = '';
+        playing.classList.remove('off'); void playing.offsetWidth;
+        playing.classList.add('on');
+        playing.play().catch(() => {});
+      };
+      const lightWhenReady = () => {
+        if (!backdropOn || lit) return;
+        if (ready(playing)) switchOn();
+        else playing.addEventListener('canplay', lightWhenReady, { once: true });
+      };
+      const onEnded = (e) => {
+        if (e.target !== playing) return;
+        const done = playing;
+        [playing, standby] = [standby, playing];
+        if (!backdropOn) { lit = false; stage(done); return; } // swap unseen; light the new one on the next hover
+        done.classList.remove('on'); done.classList.add('off');
+        done.addEventListener('animationend', () => { stage(done); lit = false; lightWhenReady(); }, { once: true });
+      };
+      if (canHover && !reduced) {
+        addEventListener('load', () => { stage(playing); stage(standby); });
+        for (const v of backdrop.querySelectorAll('video')) v.addEventListener('ended', onEnded);
+      }
+      const showBackdrop = (on) => {
+        if (!canHover || reduced || on === backdropOn) return;
+        backdropOn = on;
+        backdrop.classList.toggle('show', on);
+        if (on) { if (lit) playing.play().catch(() => {}); else lightWhenReady(); }
+        else playing.pause();
+      };
 
       // ---- ANIME: two TVs switch on, each showing a gif drawn at random from the pool ----
       const POOL = [
@@ -398,22 +491,7 @@
       // front is much likelier than the back (position n has weight DECAY^n: 0.6, 0.36, 0.22...),
       // then sends both to the back. Recently shown gifs sink; long-unseen ones rise. Only the
       // pair that will show next is ever fetched, so a visit costs a few gifs, not the pool.
-      const DECAY = 0.6;
-      const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
-      const queue = shuffle([...POOL]);
-      const draw = (len) => { // index into the first `len` queue slots, weighted by position
-        let r = Math.random() * (1 - DECAY ** len) / (1 - DECAY);
-        for (let i = 0; i < len - 1; i++) { r -= DECAY ** i; if (r < 0) return i; }
-        return len - 1;
-      };
-      const pick = (n) => {
-        const out = [];
-        // the last n slots hold the pair on screen; leave them out so a gif never shows twice running
-        for (let k = 0; k < Math.min(n, queue.length); k++) out.push(...queue.splice(draw(Math.max(1, queue.length - n)), 1));
-        queue.push(...out);
-        while (out.length < n) out.push(out[out.length % Math.max(1, out.length)]);
-        return out;
-      };
+      const pick = weightedQueue(POOL);
       let next = pick(tvs.length);
       const warm = () => next.forEach((src) => { const i = new Image(); i.src = src; });
       if (canHover) addEventListener('load', warm);
