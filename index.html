@@ -449,11 +449,12 @@
         };
       };
 
-      // ---- WORLD: clips of the world behind the page, one run through the pool per hover ----
+      // ---- WORLD: clips of the world behind the page, in one order shuffled per page load ----
       // Static shows at once; a clip fades in over it when it can play. Two players take turns:
       // the next clip starts loading as one begins to play, and nothing is fetched before the
-      // first hover. After the run's last clip the backdrop goes dark again; the next hover
-      // starts a fresh run. Nothing is fetched on a device that can't hover.
+      // first hover. Leaving pauses where it is and re-hovering resumes there. After the last clip
+      // the backdrop goes dark; the next hover starts the order over. Nothing is fetched on a
+      // device that can't hover.
       const CLIPS = [
         'assets/world/gary-pineapple.mp4',
         'assets/world/sahurs-in-keep.mp4',
@@ -462,13 +463,14 @@
       ];
       const backdrop = document.querySelector('.backdrop');
       const backdropSnow = snow(backdrop.querySelector('.static'));
-      const nextRun = weightedQueue(CLIPS);
+      const order = shuffle([...CLIPS]);
       let [playing, standby] = backdrop.querySelectorAll('video');
       let run = [], backdropOn = false, runOver = true, snowTimer = 0;
       const stage = (v, src) => { v.classList.remove('ready'); v.src = src; v.preload = 'auto'; v.load(); };
-      const startRun = () => { run = nextRun(CLIPS.length, 0); stage(playing, run.shift()); };
+      const startRun = () => { run = [...order]; stage(playing, run.shift()); };
       const light = () => {
-        if (!backdropOn || playing.classList.contains('ready')) return;
+        if (!backdropOn) return;
+        if (playing.classList.contains('ready')) { playing.play().catch(() => {}); return; }
         if (playing.readyState < 3) { playing.addEventListener('canplay', light, { once: true }); return; }
         playing.classList.add('ready');
         playing.play().catch(() => {});
