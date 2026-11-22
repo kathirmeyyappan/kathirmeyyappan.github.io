@@ -378,7 +378,7 @@
 
       // ---- WORLD: an Elizabeth on each side walks up from the distance for 5s, then stands ----
       const STAND = 'assets/elizabeth-stand.png'; // each walker's own gif is in data-walk
-      const ELIZABETHS = true; // the pair that walks up on WORLD hover; false hides them
+      const ELIZABETHS = false; // the pair that walks up on WORLD hover; false hides them
       const walkers = ELIZABETHS ? [...document.querySelectorAll('.walker')] : [];
       let hideTimer = 0;
       for (const w of walkers) {
