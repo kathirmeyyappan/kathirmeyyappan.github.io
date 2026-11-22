@@ -130,20 +130,20 @@
     .backdrop {
       position: fixed; inset: 0; z-index: 1; pointer-events: none;
       opacity: 0; transition: opacity 0.6s ease;
-      filter: brightness(0.6) saturate(0.6) contrast(1.08);
+      filter: brightness(0.78) saturate(0.7) contrast(1.05);
     }
     .backdrop.show { opacity: 1; }
     .backdrop video {
       position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
-      transform-origin: 50% 50%; opacity: 0;
+      opacity: 0; transition: opacity 0.9s ease;
     }
+    .backdrop video.ready { opacity: 1; }
+    .backdrop .static { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; opacity: 0.55; }
     .backdrop::after { /* keeps the middle readable: dark toward the menu, darker at the edges */
       content: ''; position: absolute; inset: 0;
       background:
-        radial-gradient(ellipse at 50% 50%, rgba(7, 8, 12, 0.45) 0%, rgba(7, 8, 12, 0.08) 45%, rgba(7, 8, 12, 0.6) 100%);
+        radial-gradient(ellipse at 50% 50%, rgba(7, 8, 12, 0.4) 0%, rgba(7, 8, 12, 0.05) 45%, rgba(7, 8, 12, 0.5) 100%);
     }
-    .backdrop video.on  { animation: tv-on 0.6s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
-    .backdrop video.off { animation: tv-off 0.45s ease-in both; }
 
     /* ---- WORLD: an Elizabeth on each side walks up from the distance and stops ----
        The two are deliberately out of step: different gifs (the right one's walk cycle is
@@ -297,6 +297,7 @@
   </nav>
 
   <div class="backdrop" aria-hidden="true">
+    <canvas class="static" width="160" height="90"></canvas>
     <video muted playsinline preload="none"></video>
     <video muted playsinline preload="none"></video>
   </div>
@@ -415,57 +416,87 @@
           for (let i = 0; i < len - 1; i++) { r -= DECAY ** i; if (r < 0) return i; }
           return len - 1;
         };
-        return (n) => {
-          const out = [];
-          for (let k = 0; k < Math.min(n, queue.length); k++) out.push(...queue.splice(draw(Math.max(1, queue.length - n)), 1));
+        return (n, skip = n) => { // `skip` back slots (what's on screen) are left out of the draw
+          const out = [], count = Math.min(n, queue.length);
+          for (let k = 0; k < count; k++) out.push(...queue.splice(draw(Math.max(1, queue.length - skip)), 1));
           queue.push(...out);
           while (out.length < n) out.push(out[out.length % Math.max(1, out.length)]);
           return out;
         };
       };
 
-      // ---- WORLD: a clip of the world behind the page; when one ends the next switches on ----
-      // Two players take turns: while one plays, the next clip loads into the other, so a switch
-      // never waits on the network. Nothing is fetched on a device that can't hover.
+      // CRT snow on a canvas, drawn small and scaled up: a dim bar rolls down it.
+      const snow = (canvas) => {
+        const ctx = canvas.getContext('2d');
+        const { width: w, height: h } = canvas;
+        const px = ctx.createImageData(w, h), d = px.data;
+        let raf = 0, last = 0, band = 0;
+        const frame = (now) => {
+          raf = requestAnimationFrame(frame);
+          if (now - last < 40) return; // ~25 fps is plenty for snow
+          last = now; band = (band + 1.5) % (h + 12);
+          for (let i = 0; i < d.length; i += 4) {
+            const y = (i >> 2) / w | 0;
+            const dark = Math.abs(y - band) < 6 ? 0.55 : 1;
+            const v = (Math.random() * 190 + 30) * dark;
+            d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255;
+          }
+          ctx.putImageData(px, 0, 0);
+        };
+        return {
+          start() { if (!raf) raf = requestAnimationFrame(frame); },
+          stop() { cancelAnimationFrame(raf); raf = 0; },
+        };
+      };
+
+      // ---- WORLD: clips of the world behind the page, one run through the pool per hover ----
+      // Static shows at once; a clip fades in over it when it can play. Two players take turns:
+      // the next clip starts loading as one begins to play, and nothing is fetched before the
+      // first hover. After the run's last clip the backdrop goes dark again; the next hover
+      // starts a fresh run. Nothing is fetched on a device that can't hover.
       const CLIPS = [
+        'assets/world/gary-pineapple.mp4',
+        'assets/world/sahurs-in-keep.mp4',
+        'assets/world/squidward-krusty-krab.mp4',
         'assets/world/waluigi-boost.mp4',
       ];
       const backdrop = document.querySelector('.backdrop');
-      const nextClip = weightedQueue(CLIPS);
+      const backdropSnow = snow(backdrop.querySelector('.static'));
+      const nextRun = weightedQueue(CLIPS);
       let [playing, standby] = backdrop.querySelectorAll('video');
-      let backdropOn = false, lit = false;
-      const stage = (v) => { v.src = nextClip(1)[0]; v.preload = 'auto'; v.load(); };
-      const ready = (v) => v.readyState >= 3; // HAVE_FUTURE_DATA: it can start without stalling
-      const switchOn = () => {
-        lit = true;
-        standby.classList.remove('on', 'off'); standby.style.opacity = '';
-        playing.classList.remove('off'); void playing.offsetWidth;
-        playing.classList.add('on');
+      let run = [], backdropOn = false, runOver = true, snowTimer = 0;
+      const stage = (v, src) => { v.classList.remove('ready'); v.src = src; v.preload = 'auto'; v.load(); };
+      const startRun = () => { run = nextRun(CLIPS.length, 0); stage(playing, run.shift()); };
+      const light = () => {
+        if (!backdropOn || playing.classList.contains('ready')) return;
+        if (playing.readyState < 3) { playing.addEventListener('canplay', light, { once: true }); return; }
+        playing.classList.add('ready');
         playing.play().catch(() => {});
-      };
-      const lightWhenReady = () => {
-        if (!backdropOn || lit) return;
-        if (ready(playing)) switchOn();
-        else playing.addEventListener('canplay', lightWhenReady, { once: true });
+        if (run.length && !standby.getAttribute('src')) stage(standby, run.shift());
+        clearTimeout(snowTimer); snowTimer = setTimeout(() => backdropSnow.stop(), 1000);
       };
       const onEnded = (e) => {
-        if (e.target !== playing) return;
+        if (e.target !== playing || !backdropOn) return;
+        if (!standby.getAttribute('src')) { runOver = true; showBackdrop(false); return; }
         const done = playing;
         [playing, standby] = [standby, playing];
-        if (!backdropOn) { lit = false; stage(done); return; } // swap unseen; light the new one on the next hover
-        done.classList.remove('on'); done.classList.add('off');
-        done.addEventListener('animationend', () => { stage(done); lit = false; lightWhenReady(); }, { once: true });
+        done.style.transition = 'none'; done.classList.remove('ready'); void done.offsetWidth; done.style.transition = '';
+        done.removeAttribute('src'); done.load();
+        backdropSnow.start(); light();
       };
-      if (canHover && !reduced) {
-        addEventListener('load', () => { stage(playing); stage(standby); });
-        for (const v of backdrop.querySelectorAll('video')) v.addEventListener('ended', onEnded);
-      }
+      if (canHover && !reduced) for (const v of backdrop.querySelectorAll('video')) v.addEventListener('ended', onEnded);
       const showBackdrop = (on) => {
         if (!canHover || reduced || on === backdropOn) return;
         backdropOn = on;
         backdrop.classList.toggle('show', on);
-        if (on) { if (lit) playing.play().catch(() => {}); else lightWhenReady(); }
-        else playing.pause();
+        clearTimeout(snowTimer);
+        if (on) {
+          if (runOver) { runOver = false; startRun(); }
+          backdropSnow.start(); light();
+        } else {
+          playing.pause();
+          snowTimer = setTimeout(() => backdropSnow.stop(), 700);
+        }
       };
 
       // ---- ANIME: two TVs switch on, each showing a gif drawn at random from the pool ----
@@ -497,29 +528,7 @@
       if (canHover) addEventListener('load', warm);
       // Each screen shows CRT snow the instant it switches on; the gif fades in over it once
       // decoded, so a slow download never shows a black screen or a pop-in.
-      const snow = (tv) => {
-        const canvas = tv.querySelector('.static'), ctx = canvas.getContext('2d');
-        const { width: w, height: h } = canvas;
-        const px = ctx.createImageData(w, h), d = px.data;
-        let raf = 0, last = 0, band = 0;
-        const frame = (now) => {
-          raf = requestAnimationFrame(frame);
-          if (now - last < 40) return; // ~25 fps is plenty for snow
-          last = now; band = (band + 1.5) % (h + 12);
-          for (let i = 0; i < d.length; i += 4) {
-            const y = (i >> 2) / w | 0;
-            const dark = Math.abs(y - band) < 6 ? 0.55 : 1; // a dim bar rolling down the screen
-            const v = (Math.random() * 190 + 30) * dark;
-            d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255;
-          }
-          ctx.putImageData(px, 0, 0);
-        };
-        return {
-          start() { if (!raf) raf = requestAnimationFrame(frame); },
-          stop() { cancelAnimationFrame(raf); raf = 0; },
-        };
-      };
-      const sets = tvs.map((tv) => ({ tv, img: tv.querySelector('img'), screen: tv.querySelector('.screen'), snow: snow(tv), stopTimer: 0 }));
+      const sets = tvs.map((tv) => ({ tv, img: tv.querySelector('img'), screen: tv.querySelector('.screen'), snow: snow(tv.querySelector('.static')), stopTimer: 0 }));
       bind(document.getElementById('anime'), () => {
         const srcs = next;
         next = pick(tvs.length); warm();
