@@ -130,7 +130,7 @@
     .backdrop {
       position: fixed; inset: 0; z-index: 1; pointer-events: none;
       opacity: 0; transition: opacity 0.6s ease;
-      filter: brightness(0.42) saturate(0.5) contrast(1.1);
+      filter: brightness(0.6) saturate(0.6) contrast(1.08);
     }
     .backdrop.show { opacity: 1; }
     .backdrop video {
@@ -140,7 +140,7 @@
     .backdrop::after { /* keeps the middle readable: dark toward the menu, darker at the edges */
       content: ''; position: absolute; inset: 0;
       background:
-        radial-gradient(ellipse at 50% 50%, rgba(7, 8, 12, 0.55) 0%, rgba(7, 8, 12, 0.15) 45%, rgba(7, 8, 12, 0.7) 100%);
+        radial-gradient(ellipse at 50% 50%, rgba(7, 8, 12, 0.45) 0%, rgba(7, 8, 12, 0.08) 45%, rgba(7, 8, 12, 0.6) 100%);
     }
     .backdrop video.on  { animation: tv-on 0.6s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
     .backdrop video.off { animation: tv-off 0.45s ease-in both; }
