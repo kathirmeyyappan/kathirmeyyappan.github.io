@@ -379,8 +379,24 @@
 
       // ---- WORLD: an Elizabeth on each side walks up from the distance for 5s, then stands ----
       const STAND = 'assets/elizabeth-stand.png'; // each walker's own gif is in data-walk
-      const ELIZABETHS = false; // the pair that walks up on WORLD hover; false hides them
-      const walkers = ELIZABETHS ? [...document.querySelectorAll('.walker')] : [];
+      // Whether this browser lets a hover start a muted video: probed once at load with a tiny
+      // inline clip, and again after the first click or key, which unlocks it everywhere.
+      let videoOk = false;
+      const probeVideo = () => {
+        const v = document.createElement('video');
+        v.muted = true; v.playsInline = true;
+        v.src = 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAMxbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAASwAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAlt0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAASwAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAIAAAACAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAEsAAAAAAABAAAAAAHTbWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAAAoAAAADABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABfm1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAT5zdGJsAAAAunN0c2QAAAAAAAAAAQAAAKphdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAIAAgBIAAAASAAAAAAAAAABFUxhdmM2MC4zMS4xMDIgbGlieDI2NAAAAAAAAAAAAAAAGP//AAAAMGF2Y0MBQsAK/+EAGGdCwArZH4iIwEQAAAMABAAAAwBQPEiZIAEABWjLg8sgAAAAEHBhc3AAAAABAAAAAQAAABRidHJ0AAAAAAAARPUAAET1AAAAGHN0dHMAAAAAAAAAAQAAAAMAAAQAAAAAFHN0c3MAAAAAAAAAAQAAAAEAAAAcc3RzYwAAAAAAAAABAAAAAQAAAAMAAAABAAAAIHN0c3oAAAAAAAAAAAAAAAMAAAKDAAAACQAAAAoAAAAUc3RjbwAAAAAAAAABAAADYQAAAGJ1ZHRhAAAAWm1ldGEAAAAAAAAAIWhkbHIAAAAAAAAAAG1kaXJhcHBsAAAAAAAAAAAAAAAALWlsc3QAAAAlqXRvbwAAAB1kYXRhAAAAAQAAAABMYXZmNjAuMTYuMTAwAAAACGZyZWUAAAKebWRhdAAAAnEGBf//bdxF6b3m2Ui3lizYINkj7u94MjY0IC0gY29yZSAxNjQgcjMxMDggMzFlMTlmOSAtIEguMjY0L01QRUctNCBBVkMgY29kZWMgLSBDb3B5bGVmdCAyMDAzLTIwMjMgLSBodHRwOi8vd3d3LnZpZGVvbGFuLm9yZy94MjY0Lmh0bWwgLSBvcHRpb25zOiBjYWJhYz0wIHJlZj0zIGRlYmxvY2s9MTowOjAgYW5hbHlzZT0weDE6MHgxMTEgbWU9aGV4IHN1Ym1lPTcgcHN5PTEgcHN5X3JkPTEuMDA6MC4wMCBtaXhlZF9yZWY9MSBtZV9yYW5nZT0xNiBjaHJvbWFfbWU9MSB0cmVsbGlzPTEgOHg4ZGN0PTAgY3FtPTAgZGVhZHpvbmU9MjEsMTEgZmFzdF9wc2tpcD0xIGNocm9tYV9xcF9vZmZzZXQ9LTIgdGhyZWFkcz0xIGxvb2thaGVhZF90aHJlYWRzPTEgc2xpY2VkX3RocmVhZHM9MCBucj0wIGRlY2ltYXRlPTEgaW50ZXJsYWNlZD0wIGJsdXJheV9jb21wYXQ9MCBjb25zdHJhaW5lZF9pbnRyYT0wIGJmcmFtZXM9MCB3ZWlnaHRwPTAga2V5aW50PTI1MCBrZXlpbnRfbWluPTEwIHNjZW5lY3V0PTQwIGludHJhX3JlZnJlc2g9MCByY19sb29rYWhlYWQ9NDAgcmM9Y3JmIG1idHJlZT0xIGNyZj0yMy4wIHFjb21wPTAuNjAgcXBtaW49MCBxcG1heD02OSBxcHN0ZXA9NCBpcF9yYXRpbz0xLjQwIGFxPTE6MS4wMACAAAAACmWIhA/yYoAAw+4AAAAFQZo4HeoAAAAGQZpUBvqA';
+        v.play().then(() => { videoOk = true; }, () => { videoOk = false; });
+      };
+      if (canHover && !reduced) {
+        probeVideo();
+        const unlock = () => { probeVideo(); removeEventListener('pointerdown', unlock); removeEventListener('keydown', unlock); };
+        addEventListener('pointerdown', unlock); addEventListener('keydown', unlock);
+      }
+
+      const ELIZABETHS = false; // true: the pair always walks up on WORLD hover; false: only where video can't
+      const walkers = [...document.querySelectorAll('.walker')];
+      const walkersWanted = () => ELIZABETHS || !videoOk;
       let hideTimer = 0;
       for (const w of walkers) {
         w.querySelector('img').addEventListener('animationend', (e) => { e.target.src = STAND; });
@@ -388,7 +404,7 @@
       bind(document.getElementById('world'), () => {
         clearTimeout(hideTimer);
         showBackdrop(true);
-        for (const w of walkers) {
+        if (walkersWanted()) for (const w of walkers) {
           const img = w.querySelector('img');
           img.src = img.dataset.walk;
           w.classList.remove('go');
@@ -473,10 +489,12 @@
         if (!backdropOn) return;
         if (playing.classList.contains('ready')) { playing.play().catch(() => {}); return; }
         if (playing.readyState < 3) { playing.addEventListener('canplay', light, { once: true }); return; }
-        playing.classList.add('ready');
-        playing.play().catch(() => {});
-        if (run.length && !standby.getAttribute('src')) stage(standby, run.shift());
-        clearTimeout(snowTimer); snowTimer = setTimeout(() => backdropSnow.stop(), 1000);
+        playing.play().then(() => {
+          if (!backdropOn) { playing.pause(); return; }
+          playing.classList.add('ready');
+          if (run.length && !standby.getAttribute('src')) stage(standby, run.shift());
+          clearTimeout(snowTimer); snowTimer = setTimeout(() => backdropSnow.stop(), 1000);
+        }, () => { videoOk = false; showBackdrop(false); });
       };
       const onEnded = (e) => {
         if (e.target !== playing || !backdropOn) return;
@@ -489,7 +507,7 @@
       };
       if (canHover && !reduced) for (const v of backdrop.querySelectorAll('video')) v.addEventListener('ended', onEnded);
       const showBackdrop = (on) => {
-        if (!canHover || reduced || on === backdropOn) return;
+        if (!canHover || reduced || on === backdropOn || (on && !videoOk)) return;
         backdropOn = on;
         backdrop.classList.toggle('show', on);
         clearTimeout(snowTimer);
