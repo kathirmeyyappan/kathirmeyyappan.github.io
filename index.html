@@ -465,12 +465,11 @@
         };
       };
 
-      // ---- WORLD: clips of the world behind the page, in one order shuffled per page load ----
-      // Static shows at once; a clip fades in over it when it can play. Two players take turns:
-      // the next clip starts loading as one begins to play, and nothing is fetched before the
-      // first hover. Leaving pauses where it is and re-hovering resumes there. After the last clip
-      // the backdrop goes dark; the next hover starts the order over. Nothing is fetched on a
-      // device that can't hover.
+      // ---- WORLD: clips of the world behind the page, cycling in one order shuffled per load ----
+      // Static shows at once; a clip fades in over it when it can play. Each hover plays the next
+      // clip from its start, and a clip that ends under the hover is followed by the next; the
+      // order wraps round. Two players take turns: the next clip starts loading as one begins to
+      // play, and nothing is fetched before the first hover or on a device that can't hover.
       const CLIPS = [
         'assets/world/gary-pineapple.mp4',
         'assets/world/sahurs-in-keep.mp4',
@@ -482,28 +481,30 @@
       const backdropSnow = snow(backdrop.querySelector('.static'));
       const order = shuffle([...CLIPS]);
       let [playing, standby] = backdrop.querySelectorAll('video');
-      let run = [], backdropOn = false, runOver = true, snowTimer = 0;
+      let at = 0, backdropOn = false, snowTimer = 0;
+      const clip = (k) => order[k % order.length];
       const stage = (v, src) => { v.classList.remove('ready'); v.src = src; v.preload = 'auto'; v.load(); };
-      const startRun = () => { run = [...order]; stage(playing, run.shift()); };
+      const advance = () => { // the clip after the current one becomes current; the old player is emptied
+        const done = playing;
+        [playing, standby] = [standby, playing];
+        done.style.transition = 'none'; done.classList.remove('ready'); void done.offsetWidth; done.style.transition = '';
+        done.removeAttribute('src'); done.load();
+        at = (at + 1) % order.length;
+      };
       const light = () => {
-        if (!backdropOn) return;
-        if (playing.classList.contains('ready')) { playing.play().catch(() => {}); return; }
+        if (!backdropOn || playing.classList.contains('ready')) return;
+        if (!playing.getAttribute('src')) stage(playing, clip(at));
         if (playing.readyState < 3) { playing.addEventListener('canplay', light, { once: true }); return; }
         playing.play().then(() => {
           if (!backdropOn) { playing.pause(); return; }
           playing.classList.add('ready');
-          if (run.length && !standby.getAttribute('src')) stage(standby, run.shift());
+          if (!standby.getAttribute('src')) stage(standby, clip(at + 1));
           clearTimeout(snowTimer); snowTimer = setTimeout(() => backdropSnow.stop(), 1000);
         }, () => { videoOk = false; showBackdrop(false); });
       };
       const onEnded = (e) => {
         if (e.target !== playing || !backdropOn) return;
-        if (!standby.getAttribute('src')) { runOver = true; showBackdrop(false); return; }
-        const done = playing;
-        [playing, standby] = [standby, playing];
-        done.style.transition = 'none'; done.classList.remove('ready'); void done.offsetWidth; done.style.transition = '';
-        done.removeAttribute('src'); done.load();
-        backdropSnow.start(); light();
+        advance(); backdropSnow.start(); light();
       };
       if (canHover && !reduced) for (const v of backdrop.querySelectorAll('video')) v.addEventListener('ended', onEnded);
       const showBackdrop = (on) => {
@@ -511,11 +512,10 @@
         backdropOn = on;
         backdrop.classList.toggle('show', on);
         clearTimeout(snowTimer);
-        if (on) {
-          if (runOver) { runOver = false; startRun(); }
-          backdropSnow.start(); light();
-        } else {
+        if (on) { backdropSnow.start(); light(); }
+        else {
           playing.pause();
+          if (playing.getAttribute('src')) advance();
           snowTimer = setTimeout(() => backdropSnow.stop(), 700);
         }
       };
